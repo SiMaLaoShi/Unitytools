@@ -56,21 +56,6 @@ def get_files(path, rule=".lua"):
             if filename.endswith(rule):  # 判断是否是"xxx"结尾
                 all.append(filename)
     return all
-
-#清空文本文件
-def clear_txt_file(filePath):
-	 file = open(filePath,"wb")
-     file.write("")
-     file.close()
-	pass
-
-#在文本末追加换行标识
-def txt_append_line(filePath):
-	file = open("chinese.txt", "a")
-    file.write("\n//-------------------"+ filePath +"-------------------\n")
-    file.close()
-	pass
-
 # main
 if __name__ == '__main__':
      file = open("chinese.txt","wb")
@@ -79,4 +64,4 @@ if __name__ == '__main__':
      files = get_files(r"F:\\XGame\\Assets\\Lua")
      for i in files:
         start_find_chinese(i)
-        print("search \t" + i + "over \t")
+        print("search \t" + i + "\tover")
