@@ -1,30 +1,55 @@
 # coding:utf-8
-# outher 司马老师 
 import os
 import re
 import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+#输出查找结果的路径
+savePath = "chinese.txt"
+#需要查找的根文件夹
+resPath = r"F:\\XGame\\Assets\\Lua"
+#查找的匹配模式
+patterns = [r"'(.*?)'",r'"(.*?)"']
+
 #读文件
 def start_find_chinese(filePath):
     find_count = 0;
-    file = open("chinese.txt", "a")
-    file.write("\n//-------------------"+ filePath +"-------------------\n")
-    file.close()
-    with open("chinese.txt", 'a') as outfile:
+    if check_file_need_replace(filePath):
+        file = open(savePath, "a")
+        file.write("\n//-------------------" + filePath + "-------------------\n")
+        file.close()
+
+    with open(savePath, 'a') as outfile:
         with open(filePath, 'rb') as infile:
             while True:
                 content = infile.readline()
-                if re.findall(r'"(.*?)"', content):
-                    if check_contain_chinese(content) :
+                if re.findall(patterns[0], content) or re.findall(patterns[1],content):
+                    if check_contain_chinese(content):
                         if check_str_log(content):
                             outfile.write(content)
-                            find_count += 1;  
-                            pass  
+                            find_count += 1;
+                            pass
                         pass
                 if not content:
-                    return find_count 
+                    return find_count
+
+#剪裁文本文件是否有需要替换的文本
+def check_file_need_replace(filePath):
+    find_count = 0
+    with open(filePath,"rb") as infile:
+        while True:
+            content = infile.readline()
+            if re.findall(patterns[0],content) or re.findall(patterns[1],content):
+                if check_contain_chinese(content):
+                    if check_str_log(content):
+                        find_count += 1
+                        break
+            if not content:
+                break
+    return find_count > 0
+    pass
+
 #判断字符是不是日志类型
 def check_str_log(str):
     if str.find("print") != -1:
@@ -41,12 +66,14 @@ def check_str_log(str):
         pass
     return True
     pass
+
 #判断是否中文+
 def check_contain_chinese(check_str):
      for ch in check_str.decode('utf-8'):
          if u'\u4e00' <= ch <= u'\u9fff':
-           return True
+            return True
      return False
+
 #获取所有文件
 def get_files(path, rule=".lua"):
     all = []
@@ -56,12 +83,14 @@ def get_files(path, rule=".lua"):
             if filename.endswith(rule):  # 判断是否是"xxx"结尾
                 all.append(filename)
     return all
+
 # main
 if __name__ == '__main__':
-     file = open("chinese.txt","wb")
+     file = open(savePath,"wb")
      file.write("")
      file.close()
-     files = get_files(r"F:\\XGame\\Assets\\Lua")
+     files = get_files(resPath)
      for i in files:
         start_find_chinese(i)
         print("search \t" + i + "\tover")
+     print("查找结束")
