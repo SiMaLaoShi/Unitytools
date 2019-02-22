@@ -1,0 +1,18 @@
+0_package_control_loader.sublime-package
+1337 Color Scheme.sublime-package
+A File Icon.sublime-package
+All Autocomplete.sublime-package
+Boxy Theme.sublime-package
+ConvertChineseCharacters.sublime-package
+LuaComplete.sublime-package
+OpenGL Shading Language (GLSL).sublime-package
+Package Control.sublime-package
+Protobuf Syntax Hightlighting.sublime-package
+Python 3.sublime-package
+Python Checker.sublime-package
+Shader Syntax (GLSL HLSL Cg).sublime-package
+ShaderLanguages.sublime-package
+SideBarEnhancements.sublime-package
+Sublimerge 3.sublime-package
+Unity3D Shader Highlighter and Snippets.sublime-package
+auto-save.sublime-package

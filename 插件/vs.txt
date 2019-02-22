@@ -1,0 +1,9 @@
+viasfora 彩虹代码插件
+visual studio 2015 color theme editor vs主题插件
+c# outline 2015 添加{}折叠插件
+claudiaIDE 添加vs背景插件
+codeMaid 代码补全插件
+color themes for visual studio vs主题插件
+get xamarin vs跨平台插件
+jetbrains resharper ultimate jb公司vs代码补全插件
+
