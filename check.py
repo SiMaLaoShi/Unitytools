@@ -1,4 +1,8 @@
 # coding:utf-8
+#############################################
+# 查找文件中出现的中文字符串                  #
+#############################################
+
 import os
 import re
 import sys
@@ -9,7 +13,7 @@ sys.setdefaultencoding('utf8')
 savePath = "chinese.txt"
 #需要查找的根文件夹
 resPath = r"F:\\XGame\\Assets\\Lua"
-#查找的匹配模式
+#查找的匹配模式（单引号，双引号）
 patterns = [r"'(.*?)'",r'"(.*?)"']
 
 #读文件
