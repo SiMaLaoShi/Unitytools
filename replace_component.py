@@ -1,7 +1,11 @@
 #coding=utf-8
 import sys
 import os
-resPath = r"F:\\XGame\\Assets\\Lua"
+resPath = r"F:\\XGame\\Assets\\Lua\\System\\WorldBoss"
+########################################
+## 批量替换tolua中使用字符串获取组件的方式为改用泛型获取，效率更高
+########################################
+
 # 获取所有文件
 def get_files(path, rule=".lua"):
     all = []
@@ -12,6 +16,7 @@ def get_files(path, rule=".lua"):
                 all.append(filename)
     return all
 
+# 替换字符串
 def replace_component(file_path,old_str,new_str):
     try:
         f = open(file_path, 'r+')
@@ -28,6 +33,8 @@ def replace_component(file_path,old_str,new_str):
 if __name__ == '__main__':
      files = get_files(resPath)
      for i in files:
-        print("search \t" + i + "\tover")
-
-     print("查找结束")
+        replace_component(i,r':GetComponent("UILabel")',r":GetComponent(typeof(UILabel))")
+        replace_component(i,r":GetComponent('UILabel')",r":GetComponent(typeof(UILabel))")
+        # todo 替换所有组件，从CustomSettings中注册中的
+        print(i)
+     print("替换结束")
