@@ -16,3 +16,4 @@ SideBarEnhancements.sublime-package
 Sublimerge 3.sublime-package
 Unity3D Shader Highlighter and Snippets.sublime-package
 auto-save.sublime-package
+Terminal
