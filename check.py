@@ -12,7 +12,7 @@ sys.setdefaultencoding('utf8')
 #输出查找结果的路径
 savePath = "chinese.txt"
 #需要查找的根文件夹
-resPath = r"F:\\XGame\\Assets\\Lua"
+resPath = r"F:\\XGame\\Assets\\Lua\\System\\Chat"
 #查找的匹配模式（单引号，双引号）
 patterns = [r"'(.*?)'",r'"(.*?)"']
 
@@ -23,18 +23,24 @@ def start_find_chinese(filePath):
         file = open(savePath, "a")
         file.write("\n//-------------------" + filePath + "-------------------\n")
         file.close()
-
+    count = 0
     with open(savePath, 'a') as outfile:
         with open(filePath, 'rb') as infile:
             while True:
                 content = infile.readline()
-                if re.findall(patterns[0], content) or re.findall(patterns[1],content):
-                    if check_contain_chinese(content):
-                        if check_str_log(content):
-                            outfile.write(content)
-                            find_count += 1;
-                            pass
-                        pass
+                count = count + 1
+                # if re.findall(patterns[0], content) or re.findall(patterns[1],content):
+                #     if check_contain_chinese(content):
+                #         if check_str_log(content):
+                #             outfile.write(content)
+                #             find_count += 1;
+                #             pass
+                #         pass
+                #     pass
+                if content.find("FindNode") != -1:
+                	print content
+                	print count
+                	pass
                 if not content:
                     return find_count
 

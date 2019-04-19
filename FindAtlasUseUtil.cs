@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using OfficeOpenXml;
 using Object = System.Object;
 using UObject = UnityEngine.Object;
 
@@ -49,10 +50,6 @@ public class FindAtlasUseUtil : EditorWindow
         "Assets/Resources/Prefabs/UI/HeroChallenge"
     };
 
-    
-
-    
-
     #region NGUI Sprite 查找工具
     [MenuItem("Tools/查找NGUI图集引用")]
     private static void CreateWindow()
@@ -62,7 +59,7 @@ public class FindAtlasUseUtil : EditorWindow
     }
 
 
- private static List<string> prefabList = new List<string>();
+    private static List<string> prefabList = new List<string>();
     private static Dictionary<string, List<string>> bindNames;
     private static System.Timers.Timer timer;
     [MenuItem("Tools/生成模型骨骼绑点配置文件")]
@@ -279,6 +276,8 @@ public class FindAtlasUseUtil : EditorWindow
 
         GUILayout.BeginHorizontal();
         GUILayout.Label("可多选“Hierarchy”、“Project”面板的预设体");
+
+        
         bShowAtlas = GUILayout.Toggle(bShowAtlas, new GUIContent("显示图集所有图片"));
         if (GUILayout.Button("clear"))
         {
@@ -297,9 +296,55 @@ public class FindAtlasUseUtil : EditorWindow
             FindAtlasUseDatail();
         }
 
+        
+
         GUILayout.EndHorizontal();
 
-        if (spriteReferenceDatas.Count > 0 && atlas != null) ShowFindUse();
+        if (spriteReferenceDatas.Count > 0 && atlas != null)
+        {
+            if (sprName == "")
+                if (GUILayout.Button("导出信息"))
+                    Export();
+            ShowFindUse();
+        }
+    }
+
+    void Export()
+    {
+        var saveDic = Environment.CurrentDirectory + "/图集引用信息";
+        if (!Directory.Exists(saveDic))
+            Directory.CreateDirectory(saveDic);
+
+        string savePath = saveDic + "/" + atlas.name + ".xlsx";
+        if (File.Exists(savePath))
+            File.Delete(savePath);
+        FileInfo info = new FileInfo(savePath);
+        using (var package = new ExcelPackage(info))
+        {
+            var workSheet = package.Workbook.Worksheets.Add(atlas.name);
+            workSheet.Cells[1, 1].Value = "美术资源名";
+            workSheet.Cells[1, 2].Value = "引用路径";
+            workSheet.Cells[1, 3].Value = "Prefab";
+            workSheet.Cells[1, 4].Value = "Sprite";
+
+            using (var space = workSheet.Cells[1,1,1,4])
+            {
+                space.Style.Font.Bold = true;
+            }
+
+            int count = 2;
+            foreach (var data in spriteReferenceDatas)
+            {
+                workSheet.Cells[count, 1].Value = data.sprite.spriteName;
+                workSheet.Cells[count, 2].Value = data.referencePath;
+                workSheet.Cells[count, 3].Value = data.prefab.name;
+                workSheet.Cells[count, 4].Value = data.sprite.name;
+                count++;
+                EditorUtility.DisplayProgressBar("配置导出excel", atlas.name, (float)(count - 2) / spriteReferenceDatas.Count);
+            }
+            EditorUtility.ClearProgressBar();
+            package.Save();
+        }
     }
 
     private void OnSelectAtlas(UObject obj)
@@ -388,7 +433,7 @@ public class FindAtlasUseUtil : EditorWindow
         spriteReferenceDatas.Sort((x, y) => { return string.Compare(x.sprite.spriteName, y.sprite.spriteName); });
     }
 
-    private string GetCompletePath(Transform node)
+    private static string GetCompletePath(Transform node)
     {
         var path = "/" + node.name;
         while (node.parent != null)
@@ -543,7 +588,17 @@ public class FindAtlasUseUtil : EditorWindow
                     GUI.color = Color.white;;
                 }
                 else
-                    GUILayout.Label(spriteReferenceDatas[i].referencePath, GUILayout.Width(400f));
+                {
+                    GUILayout.Label(spriteReferenceDatas[i].referencePath, GUILayout.Width(380f));
+                    GUI.color = Color.green;
+                    if (GUILayout.Button("C",GUILayout.Width(20f)))
+                    {
+                        GUIUtility.systemCopyBuffer = spriteReferenceDatas[i].referencePath;
+                        ShowNotification(new GUIContent("拷贝成功，粘贴查看"));
+                    }
+                    GUI.color = Color.white;
+                }
+                    
 
                 EditorGUILayout.ObjectField("", spriteReferenceDatas[i].prefab, typeof(GameObject), true, GUILayout.Width(150f));
                 EditorGUILayout.ObjectField("", spriteReferenceDatas[i].sprite, typeof(UISprite), true, GUILayout.Width(150f));
@@ -554,6 +609,67 @@ public class FindAtlasUseUtil : EditorWindow
         GUILayout.EndVertical();
         EditorGUILayout.Space();
     }
+
+    [MenuItem("Assets/AtlasTools/导出UISprite和图集不匹配的预设")]
+    static void ExportPrefabErrorSprite()
+    {
+        var guids = AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Resources/Prefabs/UI" });
+        List<SpriteReferenceData> spriteReferenceDatas = new List<SpriteReferenceData>();
+
+        for (int i = 0; i < guids.Length; i++)
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            var sprites = go.GetComponentsInChildren<UISprite>(true);
+            foreach (UISprite sprite in sprites)
+            {
+                if (sprite.atlas != null)
+                {
+                    if (sprite.atlas.GetSprite(sprite.spriteName) == null)
+                    {
+                        SpriteReferenceData data = new SpriteReferenceData();
+                        data.sprite = sprite;
+                        data.prefab = go;
+                        data.referencePath =  GetCompletePath(sprite.transform);
+                        spriteReferenceDatas.Add(data);
+                    }
+                }
+            }
+
+            EditorUtility.DisplayProgressBar("find progress", go.name, (float) i / (guids.Length - 1));
+        }
+
+        string savDic = Environment.CurrentDirectory + "/图集引用信息";
+        string savePath = savDic + "/图集错误.xlsx";
+        FileInfo info = new FileInfo(savePath);
+        if (File.Exists(savePath))
+            File.Delete(savePath);
+        using (ExcelPackage package = new ExcelPackage(info))
+        {
+            ExcelWorksheet worksheet = package.Workbook.Worksheets.Add("图集信息");
+            worksheet.Cells[1, 1].Value = "Prefab";
+            worksheet.Cells[1, 2].Value = "Ref";
+            worksheet.Cells[1, 3].Value = "Name";
+            worksheet.Cells[1, 4].Value = "SpriteName";
+            worksheet.Cells[1, 5].Value = "Atlas";
+
+            int count = 2;
+            foreach (var data in spriteReferenceDatas)
+            {
+                worksheet.Cells[count, 1].Value = data.prefab.name;
+                worksheet.Cells[count, 2].Value = data.referencePath;
+                worksheet.Cells[count, 3].Value = data.sprite.name;
+                worksheet.Cells[count, 4].Value = data.sprite.spriteName;
+                worksheet.Cells[count, 5].Value = data.sprite.atlas.name;
+
+                EditorUtility.DisplayProgressBar("export progress", data.prefab.name, (float)count / (spriteReferenceDatas.Count - 2));
+                count++;
+            }
+            package.Save();
+        }
+        EditorUtility.ClearProgressBar();
+    }
+
 
     class SpriteReferenceData
     {
@@ -726,9 +842,10 @@ public class PrefabReplaceAtlasWindowDic : EditorWindow
     private Dictionary<string, AtlasRef> atlasRefs;
     private List<UISprite> sprites;
 
-    [MenuItem("Assets/替换选中的prefab图集")]
+    [MenuItem("Assets/AtlasTools/替换选中的prefab图集")]
     static void SelectPrefabs()
     {
+        AssetDatabase.SaveAssets();
         window = GetWindow<PrefabReplaceAtlasWindowDic>(false, "图集替换", true);
         window.maxSize = new Vector2(1280, 720);
         prefabs = new List<GameObject>();
@@ -772,12 +889,16 @@ public class PrefabReplaceAtlasWindowDic : EditorWindow
         atlasRefs = new Dictionary<string, AtlasRef>();
     }
 
+    private bool fillCommon = false;
+
     void OnGUI()
     {
         //scroll = EditorGUILayout.BeginScrollView(scroll);
         GUILayout.BeginVertical();
         if (GUILayout.Button("查找"))
             Find();
+        fillCommon = GUILayout.Toggle(fillCommon,"空图集填充Common");
+
         GUILayout.EndVertical();
         if (atlasRefs.Count > 0)
         {
@@ -803,14 +924,24 @@ public class PrefabReplaceAtlasWindowDic : EditorWindow
             foreach (UISprite uiSprite in spriteArray)
                 if (uiSprite.atlas != null)
                     temp.Add(uiSprite);
+            Debug.Log("剔除" + (spriteArray.Length - temp.Count) + "个UISprite空图集");
+            bool apply = false;
             foreach (UISprite sprite in temp)
             {
                 if (GetNewAtlas(sprite.atlas.name) == null)
                     this.ShowNotification(new GUIContent(sprite.atlas.name + "没有对应的新图集"));
                 else
+                {
+                    if (sprite.atlas != null && GetNewAtlas(sprite.atlas.name).name == sprite.atlas.name)
+                        continue;
                     sprite.atlas = GetNewAtlas(sprite.atlas.name);
+                    apply = true;
+                }
+                    
             }
-            Apply(gameObject);
+
+            if (apply)
+                Apply(gameObject);
             progress++;
             EditorUtility.DisplayProgressBar("", "批量替换中", (float)progress / prefabs.Count);
         }
@@ -822,6 +953,8 @@ public class PrefabReplaceAtlasWindowDic : EditorWindow
 
     void Apply(GameObject prefab)
     {
+        
+        Debug.Log(PrefabUtility.GetPrefabType(prefab));
         GameObject temp = GameObject.Instantiate(prefab);
         PrefabUtility.ReplacePrefab(temp, prefab, ReplacePrefabOptions.ConnectToPrefab);
         DestroyImmediate(temp);
@@ -873,6 +1006,9 @@ public class PrefabReplaceAtlasWindowDic : EditorWindow
             foreach (UISprite uiSprite in spriteArray)
                 if (uiSprite.atlas != null)
                     temp.Add(uiSprite);
+                else
+                	if (fillCommon)
+                    	uiSprite.atlas = Resources.Load<GameObject>("UI/Atlas/Common/Common_Atlas").GetComponent<UIAtlas>();
 
             foreach (var uiSprite in temp)
             {
@@ -904,6 +1040,7 @@ public class AtlasSplitDataReplace : EditorWindow
     static void OpenWindow()
     {
         window = GetWindow<AtlasSplitDataReplace>(false, "图集九宫格信息替换窗口", true);
+        window.maxSize = new Vector2(1280, 720);
         window.Show();
     }
 
@@ -949,12 +1086,14 @@ public class AtlasSplitDataReplace : EditorWindow
         {
             foreach (var splitData in splitDatas)
             {
-                if (splitData.Key == data.name)
+                if (splitData.Key == data.name )
                 {
-                    data.borderLeft = splitData.Value.left;
+                    var value = splitData.Value;
+                    data.SetBorder(value.left, value.bottom, value.right, value.top);
+/*                    data.borderLeft = splitData.Value.left;
                     data.borderRight = splitData.Value.right;
                     data.borderBottom = splitData.Value.bottom;
-                    data.borderTop = splitData.Value.top;
+                    data.borderTop = splitData.Value.top;*/
                 }
             }
 
@@ -967,10 +1106,13 @@ public class AtlasSplitDataReplace : EditorWindow
 
     void Apply(GameObject prefab)
     {
-        GameObject temp = GameObject.Instantiate(prefab);
-        PrefabUtility.ReplacePrefab(temp, prefab, ReplacePrefabOptions.ConnectToPrefab);
-        DestroyImmediate(temp);
-          AssetDatabase.SaveAssets();
+        //GameObject temp = GameObject.Instantiate(prefab);
+        //PrefabUtility.ReplacePrefab(temp, prefab, ReplacePrefabOptions.ConnectToPrefab);
+        //DestroyImmediate(temp);
+        prefab.transform.position = Vector3.one;
+        prefab.transform.position = Vector3.zero;
+        AssetDatabase.Refresh();
+        AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
     }
 
@@ -988,15 +1130,21 @@ public class AtlasSplitDataReplace : EditorWindow
             return;
         }
 
+        splitDatas = new Dictionary<string, SplitData>();
+
         foreach (UISpriteData spriteData in oldAtlas.spriteList)
         {
-            SplitData data = new SplitData();
-            data.name = spriteData.name;
-            data.bottom = spriteData.borderBottom;
-            data.top = spriteData.borderTop;
-            data.left = spriteData.borderLeft;
-            data.right = spriteData.borderRight;
-            splitDatas.Add(spriteData.name, data);
+            if (spriteData.borderLeft != 0 || spriteData.borderRight != 0 || spriteData.borderBottom != 0 || spriteData.borderTop != 0)
+            {
+                SplitData data = new SplitData();
+                data.name = spriteData.name;
+                data.bottom = spriteData.borderBottom;
+                data.top = spriteData.borderTop;
+                data.left = spriteData.borderLeft;
+                data.right = spriteData.borderRight;
+                splitDatas.Add(spriteData.name, data);
+            }
+           
         }
     }
 
@@ -1053,6 +1201,254 @@ public class AtlasSplitDataReplace : EditorWindow
 
 
 
+}
+
+public class SpriteReplaceWindow : EditorWindow
+{
+    private static SpriteReplaceWindow window;
+
+    [MenuItem("Assets/AtlasTools/图集替换窗口")]
+    static void OpenWindow()
+    {
+        window = GetWindow<SpriteReplaceWindow>(false, "图集替换窗口", false);
+        window.maxSize = new Vector2(1280, 720);
+        window.Show();
+    }
+
+    void OnEnable()
+    {
+        spriteArray = new UISprite[0];
+    }
+
+    void OnDisable()
+    {
+        spriteArray = new UISprite[0];
+    }
+
+    public GameObject prefab;
+    public UISprite[] spriteArray;
+    void OnGUI()
+    {
+        EditorGUILayout.BeginVertical();
+        prefab = EditorGUILayout.ObjectField("预设体",prefab,typeof(GameObject),false) as GameObject;
+        if(GUILayout.Button("查找"))
+            Fill();
+        if (spriteArray.Length > 0)
+        {
+            if (GUILayout.Button("Apply"))
+            {
+                GameObject temp = GameObject.Instantiate(prefab);
+                PrefabUtility.ReplacePrefab(temp, prefab, ReplacePrefabOptions.ConnectToPrefab);
+                DestroyImmediate(temp);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+            }
+            DrawResult();
+        }
+            
+
+        EditorGUILayout.EndVertical();
+    }
+
+
+    void Fill()
+    {
+        if (prefab == null)
+        {
+            this.ShowNotification(new GUIContent("没有选择预设体"));
+            return;
+        }
+
+        spriteArray = prefab.GetComponentsInChildren<UISprite>(true);
+        Array.Sort(spriteArray, (x, y) =>
+        {
+            if (x.atlas == null || y.atlas == null)
+                return 0;
+            return string.Compare(x.atlas.name, y.atlas.name) * (atlasSort ? 1 : -1);
+        });
+    }
+
+    private Vector2 scroll;
+    private int selectIndex;
+    private string up = "▲";
+    private string down = "▼";
+    private bool atlasSort = false;
+    void DrawTitle()
+    {
+        GUILayout.BeginHorizontal();
+        GUI.color = Color.green;
+        GUILayout.Label("控件名", GUILayout.Width(120));
+        GUILayout.Label("美术名", GUILayout.Width(170f));
+        GUILayout.Label("Sprite", GUILayout.Width(150f + 76f + 20f));
+        GUILayout.Label("Atlas", GUILayout.MaxWidth(150f + 76f));
+        if (GUILayout.Button(atlasSort ? up : down,GUILayout.Width(20f)))
+        {
+            atlasSort = !atlasSort;
+            Array.Sort(spriteArray, (x, y) =>
+            {
+                if (x.atlas == null || y.atlas == null)
+                    return 0;
+                return string.Compare(x.atlas.name, y.atlas.name) * (atlasSort ? 1 : -1);
+            });
+        }
+        GUILayout.EndHorizontal();
+        GUI.color = Color.white;
+    }
+
+
+    void DrawResult()
+    {
+        DrawTitle();
+        scroll = GUILayout.BeginScrollView(scroll, GUILayout.MaxHeight(400f));
+        for (int i = 0; i < spriteArray.Length; i++)
+        {
+            if (spriteArray[i] == null)
+                continue;
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(spriteArray[i].name, GUILayout.Width(100f));
+
+            GUI.color = Color.red;
+            if (GUILayout.Button("C", GUILayout.Width(20f)))
+                MyTools.CopyStr(spriteArray[i].name, this);
+            GUI.color = Color.white;
+
+            GUILayout.Label(spriteArray[i].spriteName, GUILayout.Width(150f));
+
+            GUI.color = Color.red;
+            if (GUILayout.Button("C", GUILayout.Width(20f)))
+                MyTools.CopyStr(spriteArray[i].spriteName,this);
+            GUI.color = Color.white;
+
+            if (NGUIEditorTools.DrawPrefixButton("Sprite"))
+            {
+                NGUISettings.atlas = spriteArray[i].atlas;
+                selectIndex = i;
+                SpriteSelector.Show(OnSelectSprite);
+            }
+            spriteArray[i] = EditorGUILayout.ObjectField("", spriteArray[i], typeof(UISprite), false,GUILayout.MaxWidth(110f)) as UISprite;
+            if (GUILayout.Button("Edit", GUILayout.Width(40f)))
+            {
+                if (spriteArray[i].atlas != null)
+                {
+                    UIAtlas atl = spriteArray[i].atlas;
+                    NGUISettings.atlas = atl;
+                    NGUISettings.selectedSprite = spriteArray[i].name;
+                    if (atl != null) NGUIEditorTools.Select(atl.gameObject);
+                }
+            }
+
+            GUILayout.Space(10f);
+
+            if (NGUIEditorTools.DrawPrefixButton("Atlas"))
+            {
+                ComponentSelector.Show<UIAtlas>(OnSelectAtlas);
+                selectIndex = i;
+            }
+            spriteArray[i].atlas = EditorGUILayout.ObjectField("",spriteArray[i].atlas,typeof(UIAtlas),false,GUILayout.MaxWidth(150f)) as UIAtlas;
+            if (GUILayout.Button("Edit", GUILayout.Width(40f)))
+            {
+                if (spriteArray[i].atlas != null)
+                {
+                    UIAtlas atl = spriteArray[i].atlas;
+                    NGUISettings.selectedSprite = spriteArray[i].name;
+                    NGUISettings.atlas = atl;
+                    if (atl != null) NGUIEditorTools.Select(atl.gameObject);
+                }
+            }
+
+            GUILayout.EndHorizontal();
+        }
+        GUILayout.EndScrollView();
+    }
+
+    void OnSelectSprite(string name)
+    {
+        spriteArray[selectIndex].spriteName = name;
+    }
+    
+
+    void OnSelectAtlas(Object atlas)
+    {
+        spriteArray[selectIndex].atlas = atlas as UIAtlas;
+    }
+}
+
+public class AtlasReplaceOneKey : EditorWindow
+{
+    private static AtlasReplaceOneKey window;
+
+    
+    static void OpenWindow()
+    {
+
+    }
+
+    private UIAtlas _oldAtlas;
+    private UIAtlas _newAtlas;
+
+    void OnEnable()
+    {
+        prefabAtlases = new Dictionary<string, PrefabAtlas>();
+    }
+
+   
+    //public Vector2 sroll =;
+    void OnGUI()
+    {
+        _oldAtlas = EditorGUILayout.ObjectField("旧图集", _oldAtlas, typeof(UIAtlas), false) as UIAtlas;
+        _newAtlas = EditorGUILayout.ObjectField("新图集", _newAtlas, typeof(UIAtlas), false) as UIAtlas;
+        if (GUILayout.Button("查找替换"))
+        {
+            FindAtlas();
+        }
+
+        if (prefabAtlases.Count > 0)
+        {
+            //GUILayout.BeginScrollView(s)
+        }
+
+    }
+
+    private Dictionary<string, PrefabAtlas> prefabAtlases;
+
+    void FindAtlas()
+    {
+        prefabAtlases = new Dictionary<string, PrefabAtlas>();
+        string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] {"Assets/Resources/Prefabs/UI"});
+        for (int i = 0; i < guids.Length; i++)
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            var sprites = go.GetComponentsInChildren<UISprite>(true);
+            foreach (UISprite sprite in sprites)
+            {
+                if (sprite.atlas.name == _oldAtlas.name)
+                {
+                    sprite.atlas = _newAtlas;
+                    if (!prefabAtlases.ContainsKey(guids[i]))
+                    {
+                        PrefabAtlas prefabAtlas = new PrefabAtlas();
+                        prefabAtlas.prefab = go;
+                        prefabAtlas.bReplace = true;
+                        prefabAtlases.Add(guids[i],prefabAtlas);
+                    }
+                }
+            }
+
+        }
+
+        foreach (var prefabAtlase in prefabAtlases)
+        {
+            //prefabAtlase.va
+        }
+        
+    }
+
+    class PrefabAtlas
+    {
+        public GameObject prefab;
+        public bool bReplace = false;
+    }
 }
 
 
@@ -1153,6 +1549,15 @@ class UITextureWindow : EditorWindow
     void OnGUI()
     {
         GUILayout.Label("窗口");
+    }
+}
+
+internal class MyTools : Editor
+{
+    public static void CopyStr(string str, EditorWindow window, string tips = "拷贝成功Ctrl + V 查看")
+    {
+        GUIUtility.systemCopyBuffer = str;
+        window.ShowNotification(new GUIContent(tips));
     }
 }
 internal class TextureTools
